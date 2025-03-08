@@ -1,0 +1,473 @@
+
+```{r}
+# Load libraries
+library(shiny)
+library(ggplot2)
+library(dplyr)
+
+# Load Netflix dataset
+netflix <- read.csv("netflix_data.csv")
+
+# Define user interface
+ui <- fluidPage(
+  titlePanel("Netflix Analysis"),
+  sidebarLayout(
+    sidebarPanel(
+      selectInput("type", label = "Select Type", 
+                  choices = c("All", "TV Show", "Movie"), selected = "All"),
+      sliderInput("year", label = "Select Year Range", min = 1925, max = 2022, 
+                  value = c(2000, 2022))
+    ),
+    mainPanel(
+      plotOutput("scatterPlot")
+    )
+  )
+)
+
+# Define server logic
+server <- function(input, output) {
+  # Filter data based on user input
+  data <- reactive({
+    df <- netflix
+    if(input$type != "All") {
+      df <- df %>% filter(type == input$type)
+    }
+    df <- df %>% filter(release_year >= input$year[1], release_year <= input$year[2])
+    df
+  })
+  
+  # Generate scatter plot
+  output$scatterPlot <- renderPlot({
+    ggplot(data(), aes(x = duration, y = rating)) +
+      geom_point() +
+      geom_smooth(method = "lm", se = FALSE, color = "red") +
+      labs(x = "Duration (Minutes)", y = "IMDb Rating", 
+           title = "Scatter Plot of Duration vs Rating") +
+      theme_bw()
+  })
+  
+  # Regression analysis
+  output$regression <- renderPrint({
+    lm_fit <- lm(rating ~ duration, data = data())
+    summary(lm_fit)
+  })
+}
+
+# Run the application
+shinyApp(ui = ui, server = server)
+```
+
+
+```{r}
+#NETFLIX CODE # 2 SNIPPET
+library(shiny)
+library(tidyverse)
+library(plotly)
+
+# Load the Netflix dataset
+netflix <- read.csv("netflix_data.csv")
+
+# Define the UI
+ui <- fluidPage(
+  titlePanel("Statistical Measures and Visualizations for Netflix Data"),
+  sidebarLayout(
+    sidebarPanel(
+      selectInput("measure", "Select a Statistical Measure:",
+                  choices = c("Number of Titles", "Average Duration (min)", 
+                              "Number of TV Shows", "Number of Movies", "Number of Countries",
+                              "Number of Directors", "Number of Actors", "IMDB Rating",
+                              "Number of Titles per Country", "Number of Titles per Director",
+                              "Number of Titles per Actor"))
+    ),
+    mainPanel(
+      plotlyOutput("plot")
+    )
+  )
+)
+
+# Define the server
+server <- function(input, output) {
+  
+  # Calculate the selected statistical measure
+  measure_data <- reactive({
+    switch(input$measure,
+           "Number of Titles" = netflix %>% group_by(type) %>% summarize(count = n()),
+           "Average Duration (min)" = netflix %>% group_by(type) %>% summarize(avg_duration = mean(duration, na.rm = TRUE)),
+           "Number of TV Shows" = netflix %>% filter(type == "TV Show") %>% summarize(count = n()),
+           "Number of Movies" = netflix %>% filter(type == "Movie") %>% summarize(count = n()),
+           "Number of Countries" = netflix %>% select(country) %>% distinct() %>% summarize(count = n()),
+           "Number of Directors" = netflix %>% select(director) %>% distinct() %>% summarize(count = n()),
+           "Number of Actors" = netflix %>% separate_cast() %>% select(cast) %>% distinct() %>% summarize(count = n()),
+           "IMDB Rating" = netflix %>% select(imdb_rating) %>% summarize(avg_rating = mean(imdb_rating, na.rm = TRUE)),
+           "Number of Titles per Country" = netflix %>% group_by(country) %>% summarize(count = n()),
+           "Number of Titles per Director" = netflix %>% group_by(director) %>% summarize(count = n()),
+           "Number of Titles per Actor" = netflix %>% separate_cast() %>% group_by(cast) %>% summarize(count = n())
+    )
+  })
+  
+  # Generate the plot
+  output$plot <- renderPlotly({
+    plot_data <- measure_data()
+    
+    # Create a bar chart
+    plot_ly(plot_data, x = 1:nrow(plot_data), y = plot_data$count, 
+            type = "bar", name = input$measure,
+            text = plot_data$count,
+            textposition = "auto",
+            marker = list(color = "rgb(26, 118, 255)")) %>%
+      layout(title = input$measure,
+             xaxis = list(title = ""),
+             yaxis = list(title = "Count"))
+  })
+}
+
+# Run the Shiny app
+shinyApp(ui, server)
+
+```
+
+```{r}
+# Load the Netflix dataset
+# Adding the libraries necessary for the analysis
+#Best Code Netflix
+library(tidyverse)
+library(readr)
+library(ggplot2)
+library(ggpubr)
+library(DT)
+
+#Importing the dataset
+
+netflix_titles <- read_csv("netflix_data.csv", show_col_types = 'FALSE')
+
+#Now let's look through the data
+
+glimpse(netflix_titles)
+summary(netflix_titles)
+
+#Separating "listed_in" column into three "category" column, and take only the first.
+netflix_titles <- netflix_titles %>% separate(listed_in, c("Category1", "Category2", "Category3"), sep = ",") 
+netflix_titles <- netflix_titles %>% select(c(-"Category2", -"Category3"))
+
+#Separating "date_added" column into "date_added" and "year_added" column.
+netflix_titles <- netflix_titles %>% separate(date_added, c("date_added", "year_added"), sep = ",")
+
+
+#Visualizing the release year trend
+
+ggplot(netflix_titles, mapping = aes(x=release_year, fill = type)) +
+  geom_histogram(color = "black", binwidth=2)+
+  labs(title="Netflix Films Released by Year", x="Release Year", y="Total Film")+
+  scale_fill_manual(values = c("Movie" = "#F6AE2D","TV Show" = "#0770BB"))
+
+
+#Visualizing at what year the films added on Netflix
+    #Firstly change the "year_added" value to numeric 
+netflix_titles$year_added <- as.numeric(netflix_titles$year_added)
+
+ggplot(netflix_titles, mapping = aes(x=year_added, fill = type)) +
+  geom_histogram(color = "black", binwidth=2)+
+  labs(title="Films Added on Netflix by Year", x= "Year", y= "Total Film")+
+  scale_fill_manual(values = c("Movie" = "#F6AE2D","TV Show" = "#0770BB"))
+
+
+# Create a new data frame of Film Types
+
+Film_Types <- netflix_titles %>% group_by(type) %>% count() %>% ungroup() %>% 
+  mutate(perc = `n` / sum(`n`)) %>% 
+  arrange(perc) %>%
+  mutate(labels = scales::percent(perc))
+
+head(Film_Types)
+
+#Visualizing Film Types using pie chart
+
+ggplot(Film_Types, aes(x = "", y = perc, fill = type)) +
+  geom_col() +
+  geom_text(aes(label = labels), position = position_stack(vjust = 0.5)) +
+  coord_polar(theta = "y") +
+  labs(title="Type of Netflix Films Comparison") +
+  theme_void() +
+  scale_fill_manual(values = c("Movie" = "#F6AE2D","TV Show" = "#0770BB"))
+
+
+# Making the dataframe of top 10 Categories 
+
+Category1 <- netflix_titles %>% group_by(Category1) %>% count()
+
+top9_Categories <- filter(Category1, n > 300) %>% arrange(desc(n))
+Other_Categories <- filter(Category1, n <300)
+Other_Categories <- data.frame(Category1 = c("Others*"), n = c(sum(Other_Categories$n)))
+
+Top10_Category <- rbind(top9_Categories, Other_Categories)
+head(Top10_Category)
+
+#Visualizing Netflix Top 10 Category
+
+ggplot(data = Top10_Category, aes(x = reorder(Category1, n), y = n)) + 
+  geom_bar(stat = "identity", fill = "#F6AE2D") +
+  coord_flip() +
+  labs(title = "Netflix's Top 10 Category", x = "Categories", y = "Total Film", caption = "Others: Horror, British, Docuseries, Anime, International, Classic, etc.")
+
+
+# Making the dataframe of top 10 Ratings
+
+Ratings <- netflix_titles %>% group_by(rating) %>% count()
+
+top9_Ratings <- filter(Ratings, n > 200) %>% arrange(desc(n))
+Other_Ratings <- filter(Ratings, n <200)
+Other_Ratings <- drop_na(Other_Ratings)
+Other_Ratings <- data.frame(rating = c("Others*"), n = c(sum(Other_Ratings$n)))
+
+Top10_Rating <- rbind(top9_Ratings, Other_Ratings)
+head(Top10_Rating)
+
+#Visualizing Netflix's Top 10 Rating
+
+ggplot(data = Top10_Rating, aes(x = reorder(rating, n), y = n)) + 
+  geom_bar(stat = "identity", fill = "#0770BB") +
+  coord_flip() +
+  labs(title = "Netflix's Top 10 Rating", x = "Ratings", y = "Total Film", caption = "Others: NR, G, TV-Y7-FV, NC-17, UR, etc.")
+
+```
+
+
+```{r}
+# Load the Netflix dataset
+# Adding the libraries necessary for the analysis
+#Best Code Netflix
+library(tidyverse)
+library(readr)
+library(ggplot2)
+library(ggpubr)
+
+#Importing the dataset
+
+netflix_titles <- read_csv("netflix_data.csv", show_col_types = 'FALSE')
+
+#Now let's look through the data
+
+glimpse(netflix_titles)
+summary(netflix_titles)
+
+#Separating "listed_in" column into three "category" column, and take only the first.
+netflix_titles <- netflix_titles %>% separate(listed_in, c("Category1", "Category2", "Category3"), sep = ",") 
+netflix_titles <- netflix_titles %>% select(c(-"Category2", -"Category3"))
+
+#Separating "date_added" column into "date_added" and "year_added" column.
+netflix_titles <- netflix_titles %>% separate(date_added, c("date_added", "year_added"), sep = ",")
+
+
+#Visualizing the release year trend
+
+ggplot(netflix_titles, mapping = aes(x=release_year, fill = type)) +
+  geom_histogram(color = "black", binwidth=2)+
+  labs(title="Netflix Films Released by Year", x="Release Year", y="Total Film")+
+  scale_fill_manual(values = c("Movie" = "#F6AE2D","TV Show" = "#0770BB"))
+
+
+#Visualizing at what year the films added on Netflix
+    #Firstly change the "year_added" value to numeric 
+netflix_titles$year_added <- as.numeric(netflix_titles$year_added)
+
+ggplot(netflix_titles, mapping = aes(x=year_added, fill = type)) +
+  geom_histogram(color = "black", binwidth=2)+
+  labs(title="Films Added on Netflix by Year", x= "Year", y= "Total Film")+
+  scale_fill_manual(values = c("Movie" = "#F6AE2D","TV Show" = "#0770BB"))
+
+
+# Create a new data frame of Film Types
+
+Film_Types <- netflix_titles %>% group_by(type) %>% count() %>% ungroup() %>% 
+  mutate(perc = `n` / sum(`n`)) %>% 
+  arrange(perc) %>%
+  mutate(labels = scales::percent(perc))
+
+head(Film_Types)
+
+#Visualizing Film Types using pie chart
+
+ggplot(Film_Types, aes(x = "", y = perc, fill = type)) +
+  geom_col() +
+  geom_text(aes(label = labels), position = position_stack(vjust = 0.5)) +
+  coord_polar(theta = "y") +
+  labs(title="Type of Netflix Films Comparison") +
+  theme_void() +
+  scale_fill_manual(values = c("Movie" = "#F6AE2D","TV Show" = "#0770BB"))
+
+```
+
+```{r}
+# Load the necessary libraries
+library(shiny)
+library(tidyverse)
+library(readr)
+library(ggplot2)
+library(ggpubr)
+library(DT)
+
+# Define UI
+ui <- fluidPage(
+  
+  # Application title
+  titlePanel("Netflix Analysis"),
+  
+  # Sidebar with a select input for the variable to plot against release year
+  sidebarLayout(
+    sidebarPanel(
+      selectInput("var", 
+                  "Select a variable to plot against release year:",
+                  choices = c("type", "rating", "listed_in", "country")
+      ),
+      selectInput("film_type", 
+                  "Select a variable to select film type:",
+                  choices = c("Movie", "TV Show")
+      ),
+      h6("Linear Regression"),
+              sliderInput(inputId = "year_range", label = "Select release year range",
+                  min = min(netflix_titles$release_year), 
+                  max = max(netflix_titles$release_year), 
+                  value = c(min(netflix_titles$release_year), 
+                            max(netflix_titles$release_year))),
+      selectInput(inputId = "category", label = "Select a category", 
+                  choices = c("Movie", "TV Show"), selected = "Movie")
+    ),
+    
+    # Show a histogram and a pie chart of film types
+    mainPanel(
+      h2("Netflix Data Analysis"),
+      plotOutput("histogram"),
+      plotOutput("piechart"),
+      dataTableOutput("table"),
+      #plotOutput('film_trend_plot')
+      plotOutput('film_comparision'),
+      #Linear Regression
+       plotOutput(outputId = "scatterplot"),
+      verbatimTextOutput(outputId = "model_summary")
+    )
+  )
+)
+
+# Define server logic
+server <- function(input, output) {
+  
+  # Load the Netflix dataset
+  netflix_titles <- read_csv("netflix_data.csv", show_col_types = 'FALSE')
+  #Cleaning the loaded data Function
+  clean_netflix_data<- function(netflix_data) {
+  # Drop any rows with missing values
+  netflix_data <- netflix_data[complete.cases(netflix_data),]
+  
+  # Convert release_year to numeric
+  netflix_data$release_year <- as.numeric(netflix_data$release_year)
+  
+  # Convert duration to numeric (in minutes)
+  netflix_data$duration <- as.numeric(gsub(" min", "", netflix_data$duration))
+  
+  # Remove leading/trailing whitespace from strings
+  netflix_data$title <- trimws(netflix_data$title)
+  netflix_data$director <- trimws(netflix_data$director)
+  netflix_data$cast <- trimws(netflix_data$cast)
+  netflix_data$country <- trimws(netflix_data$country)
+  netflix_data$listed_in <- trimws(netflix_data$listed_in)
+  netflix_data$description <- trimws(netflix_data$description)
+  
+  # Return cleaned dataset
+  return(netflix_data)
+  }
+  #Data Cleaned
+  netflix_titles <- clean_netflix_data(netflix_data)
+  # Separate "listed_in" column into three "category" column, and take only the first.
+  netflix_titles <- netflix_titles %>% separate(listed_in, c("Category1", "Category2", "Category3"), sep = ",") 
+  netflix_titles <- netflix_titles %>% select(c(-"Category2", -"Category3"))
+  
+  # Separate "date_added" column into "date_added" and "year_added" column.
+  netflix_titles <- netflix_titles %>% separate(date_added, c("date_added", "year_added"), sep = ",")
+  
+  # Create a new data frame of film types
+  Film_Types <- netflix_titles %>% 
+    group_by(type) %>% 
+    count() %>% 
+    ungroup() %>% 
+    mutate(perc = `n` / sum(`n`)) %>% 
+    arrange(perc) %>%
+    mutate(labels = scales::percent(perc))
+  
+  # Define a histogram of film release years
+  output$histogram <- renderPlot({
+    ggplot(netflix_titles, mapping = aes(x=release_year, fill = !!sym(input$var))) +
+      geom_histogram(color = "black", binwidth=2)+
+      labs(title="Netflix Films Released by Year", x="Release Year", y="Total Film")+
+      scale_fill_manual(values = c("Movie" = "#F6AE2D","TV Show" = "#0770BB"))
+  })
+  
+  # Define a pie chart of film types
+  output$piechart <- renderPlot({
+    ggplot(Film_Types, aes(x = "", y = perc, fill = type)) +
+      geom_col() +
+      geom_text(aes(label = labels), position = position_stack(vjust = 0.5)) +
+      coord_polar(theta = "y") +
+      labs(title="Type of Netflix Films Comparison") +
+      theme_void() +
+      scale_fill_manual(values = c("Movie" = "#F6AE2D","TV Show" = "#0770BB"))
+  })
+  #Filter Table Data
+  filtered_table_data <- reactive({
+    netflix_data %>%
+      filter(release_year >= input$year_range[1] & release_year <= input$year_range[2]) %>%
+      filter(input$category == "All" | category == input$category) %>%
+      filter(input$film_type == "All" | type == input$film_type)
+  })
+  
+  # Render table based on filtered data
+  output$table <- DT::renderDataTable({
+    filtered_table_data() %>%
+      select(title, type, rating, release_year, country, duration)
+  })
+  
+  # Film Trends plot
+  output$film_trend_plot <- renderPlot({
+    df <- netflix_titles
+    if (input$film_type != "All") {
+      df <- filter(df, type == input$film_type)
+    }
+    ggplot(df, mapping = aes(x=release_year, fill = type)) +
+      geom_histogram(color = "black", binwidth=2)+
+      labs(title="Netflix Films Released by Year", x="Release Year", y="Total Film")+
+      scale_fill_manual(values = c("Movie" = "#F6AE2D","TV Show" = "#0770BB"))
+  })
+  
+  # Run a linear regression on the filtered data
+ # Filter the data based on the user's input
+  observe({
+    # Get the year range from the input
+  year_range <- input$year_range
+  
+      data_subset <- netflix_titles %>%
+    filter(release_year >= input$year_range[1] & 
+             release_year <= input$year_range[2] & 
+             type == input$category)
+  
+  # Create a scatterplot of release year vs. duration
+  output$scatterplot <- renderPlot({
+    ggplot(data_subset, mapping = aes(x = release_year, y = duration)) +
+      geom_point() +
+      labs(title = "Netflix Film Duration by Release Year", x = "Release Year", y = "Duration (min)") +
+      theme_bw()
+  })
+  
+  # Run a linear regression model on the data and display the results
+  output$model_summary <- renderPrint({
+    lm_model <- lm(duration ~ release_year, data = data_subset)
+    summary(lm_model)
+  })
+  })
+
+  
+}
+
+
+# Run the application 
+shinyApp(ui = ui, server = server)
+
+```
